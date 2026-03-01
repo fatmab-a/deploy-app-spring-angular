@@ -1,6 +1,5 @@
 name: Build and Push Docker Images
 
-
 on:
   push:
     branches:
@@ -14,27 +13,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # ÉTAPE 1 : Installer Java et Maven
       - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
 
-      # ÉTAPE 2 : Compiler le backend avec Maven
       - name: Build backend with Maven
         run: |
           cd springboot/app
           mvn clean package -DskipTests
 
-      # ÉTAPE 3 : Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ÉTAPE 4 : Build et push backend
       - name: Build and push backend image
         uses: docker/build-push-action@v4
         with:
@@ -43,7 +38,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest
 
-      # ÉTAPE 5 : Build et push frontend
       - name: Build and push frontend image
         uses: docker/build-push-action@v4
         with:
@@ -51,8 +45,8 @@ jobs:
           file: ./angular-app/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
-	 
-	- name: Run docker compose
+
+      - name: Run docker compose
         run: docker compose up -d
 
       - name: Check running containers
@@ -63,3 +57,4 @@ jobs:
 
       - name: Test frontend
         run: curl -f http://localhost:4200
+
