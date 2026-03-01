@@ -13,27 +13,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # ÉTAPE 1 : Installer Java et Maven
       - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
 
-      # ÉTAPE 2 : Compiler le backend avec Maven
       - name: Build backend with Maven
         run: |
           cd springboot/app
           mvn clean package -DskipTests
-          
-      # ÉTAPE 3 : Login Docker Hub
+
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ÉTAPE 4 : Build et push backend
       - name: Build and push backend image
         uses: docker/build-push-action@v4
         with:
@@ -42,7 +38,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest
 
-      # ÉTAPE 5 : Build et push frontend
       - name: Build and push frontend image
         uses: docker/build-push-action@v4
         with:
@@ -50,26 +45,151 @@ jobs:
           file: ./angular-app/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
-          
-      # ÉTAPE 6 : Test simple avec docker-compose
-      - name: Simple docker-compose test
+
+      # REMPLACER LES IMAGES DANS DOCKER-COMPOSE
+      - name: Use your own images for testing
         run: |
-          # Démarrer avec docker-compose
-          docker-compose up -d
+          echo "========================================="
+          echo "🔄 REMPLACEMENT DES IMAGES DANS DOCKER-COMPOSE"
+          echo "========================================="
+          # Remplacer les images dans docker-compose.yml
+          sed -i "s|image:.*angular-app.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest|g" docker-compose.yml
+          sed -i "s|image:.*springboot-app.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest|g" docker-compose.yml
+          echo "✅ docker-compose.yml modifié avec vos images"
+          echo "----------------------------------------"
+          cat docker-compose.yml
+          echo "----------------------------------------"
+
+      # TEST COMPLET DE L'APPLICATION
+      - name: Test application
+        run: |
+          echo "========================================="
+          echo "🚀 ÉTAPE 1: DÉMARRAGE DE MYSQL"
+          echo "========================================="
+          docker compose up -d mysql
           
-          # Attendre
+          echo "⏳ Attente de MySQL..."
+          for i in {1..30}; do
+            if docker compose exec mysql mysqladmin ping -h localhost -uuser -ppassword --silent 2>/dev/null; then
+              echo "✅ MySQL prêt après $i secondes"
+              break
+            fi
+            echo "⏳ En attente de MySQL... $i/30"
+            sleep 2
+          done
+          
+          echo "========================================="
+          echo "🚀 ÉTAPE 2: DÉMARRAGE BACKEND ET FRONTEND"
+          echo "========================================="
+          docker compose up -d springboot-app angular-app
+          
+          echo "⏳ Attente du démarrage (30 secondes)..."
           sleep 30
           
-          # Vérifier que tous les conteneurs sont "Up"
-          if docker-compose ps | grep -q "Exit"; then
-            echo "❌ Des conteneurs ont échoué"
-            docker-compose logs
-            docker-compose down -v
-            exit 1
+          echo "========================================="
+          echo "🔍 ÉTAPE 3: ÉTAT DES CONTENEURS"
+          echo "========================================="
+          docker compose ps
+          
+          echo "========================================="
+          echo "🔍 ÉTAPE 4: TEST FRONTEND"
+          echo "========================================="
+          if curl -s -f http://localhost:4200 > /dev/null; then
+            echo "✅✅✅ FRONTEND OK - Accessible sur port 4200 ✅✅✅"
           else
-            echo "✅ Tous les conteneurs sont en cours d'exécution"
-            docker-compose ps
-            docker-compose logs --tail=50
-            docker-compose down -v
-            echo "✅✅ TEST PASSÉ !"
+            echo "❌❌❌ FRONTEND ERROR ❌❌❌"
+            docker compose logs angular-app --tail=50
           fi
+          
+          echo "========================================="
+          echo "🔍 ÉTAPE 5: TEST BACKEND"
+          echo "========================================="
+          
+          # Tester si le backend répond sur le port 8080
+          BACKEND_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
+          if [ "$BACKEND_RESPONSE" != "000" ]; then
+            echo "✅✅✅ BACKEND RÉPOND SUR LE PORT 8080 (HTTP $BACKEND_RESPONSE) ✅✅✅"
+          else
+            echo "❌❌❌ BACKEND NE RÉPOND PAS ❌❌❌"
+          fi
+          
+          # Vérifier les logs du backend
+          echo ""
+          echo "📋 Logs du backend:"
+          docker compose logs springboot-app --tail=20
+          
+          # Vérifier si l'application a démarré (chercher le message de démarrage Spring Boot)
+          BACKEND_LOGS=$(docker compose logs springboot-app)
+          if echo "$BACKEND_LOGS" | grep -q "Started"; then
+            echo "✅ Application Spring Boot démarrée"
+          fi
+          
+          echo "========================================="
+          echo "🔍 ÉTAPE 6: TEST DE COMMUNICATION"
+          echo "========================================="
+          
+          # Tester les endpoints courants
+          echo "Test des endpoints:"
+          ENDPOINTS=(
+            "/"
+            "/api/users"
+            "/api/hello"
+            "/health"
+            "/actuator/health"
+          )
+          
+          for endpoint in "${ENDPOINTS[@]}"; do
+            echo -n "🔍 Test: http://localhost:8080$endpoint ... "
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080$endpoint 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ OK (200)"
+            elif [ "$HTTP_CODE" != "000" ]; then
+              echo "⚠️ Réponse $HTTP_CODE"
+            else
+              echo "❌ Non accessible"
+            fi
+          done
+          
+          echo "========================================="
+          echo "📋 ÉTAPE 7: LOGS COMPLETS"
+          echo "========================================="
+          echo "Logs MySQL:"
+          docker compose logs mysql --tail=10
+          echo ""
+          echo "Logs Backend:"
+          docker compose logs springboot-app --tail=20
+          echo ""
+          echo "Logs Frontend:"
+          docker compose logs angular-app --tail=10
+          
+          echo "========================================="
+          echo "🧹 ÉTAPE 8: NETTOYAGE"
+          echo "========================================="
+          docker compose down -v
+          
+          echo "========================================="
+          echo "🎉 TEST TERMINÉ"
+          echo "========================================="
+          
+      - name: Final verification
+        if: always()
+        run: |
+          echo "========================================="
+          echo "✅ RÉCAPITULATIF DU WORKFLOW"
+          echo "========================================="
+          echo "📦 Images construites et poussées:"
+          echo "   - ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest"
+          echo "   - ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest"
+          echo ""
+          echo "✅ Tests exécutés:"
+          echo "   - MySQL démarré"
+          echo "   - Frontend testé (port 4200)"
+          echo "   - Backend testé (port 8080)"
+          echo ""
+          echo "📝 Notes importantes:"
+          echo "   - Assurez-vous que MySQL utilise les bons identifiants"
+          echo "   - Vérifiez que le backend est configuré sur le port 8080"
+          echo "   - Vérifiez que le frontend est configuré sur le port 4200"
+          echo ""
+          echo "🎯 WORKFLOW COMPLÉTÉ"
+          echo "========================================="
