@@ -20,7 +20,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker backend
-        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest ./springboot/app
+        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest ./springboot
 
       - name: Push Docker backend
         run: docker push ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest
