@@ -1,4 +1,4 @@
-name: CI/CD SpringBoot + Angular
+name: CI/CD - Build and Push Docker Images
 
 on:
   push:
@@ -10,44 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Récupération du code
+      # 1️⃣ Récupérer le code
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Java pour backend
+      # 2️⃣ Installer Java et Maven pour backend
       - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
 
-      # 3️⃣ Build backend avec Maven
+      # 3️⃣ Compiler le backend
       - name: Build backend with Maven
         run: |
           cd springboot/app
           mvn clean package -DskipTests
 
-      # 4️⃣ Setup Node pour frontend
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-
-      # 5️⃣ Build frontend Angular
-      - name: Build frontend Angular
-        run: |
-          cd angular-app
-          npm install --force
-          npm run build --force
-
-      # 6️⃣ Login Docker Hub
+      # 4️⃣ Login sur Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 7️⃣ Build et push backend
+      # 5️⃣ Build et push backend
       - name: Build and push backend image
         uses: docker/build-push-action@v4
         with:
@@ -56,7 +43,7 @@ jobs:
           push: true
           tags: fatmab-a/springboot-app:latest
 
-      # 8️⃣ Build et push frontend
+      # 6️⃣ Build et push frontend
       - name: Build and push frontend image
         uses: docker/build-push-action@v4
         with:
@@ -65,28 +52,27 @@ jobs:
           push: true
           tags: fatmab-a/angular-app:latest
 
-      # 9️⃣ Test de l’application avec Docker Compose
-      - name: Install Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose-plugin
-
-      - name: Test application with Docker Compose
+      # 7️⃣ Test avec Docker Compose
+      - name: Test with Docker Compose
         run: |
           docker compose up -d
-          sleep 40
-
-          echo "Containers status:"
+          sleep 30
+          echo "✅ Conteneurs démarrés"
           docker compose ps
-
-          echo "Testing Backend (port 8080)..."
-          curl -f http://localhost:8080 || exit 1
-
-          echo "Testing Frontend (port 4200)..."
-          curl -f http://localhost:4200 || exit 1
-
-          echo "Show last 20 logs"
-          docker compose logs --tail=20
-
+          # Test backend
+          if curl -s -f http://localhost:8081/actuator/health; then
+            echo "✅ Backend OK"
+          else
+            echo "❌ Backend KO"
+            exit 1
+          fi
+          # Test frontend
+          if curl -s -f http://localhost:4200; then
+            echo "✅ Frontend OK"
+          else
+            echo "❌ Frontend KO"
+            exit 1
+          fi
+          # Stop conteneurs
           docker compose down
 
