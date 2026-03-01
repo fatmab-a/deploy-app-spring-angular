@@ -51,6 +51,14 @@ jobs:
           file: ./angular-app/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+	      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-plugin
+          docker compose version
+
+      - name: Run docker compose
+        run: docker compose up -d
 
       # 7️⃣ Lancer docker compose
       - name: Run docker compose
