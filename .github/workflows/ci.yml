@@ -16,18 +16,17 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_FATMA }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker backend
-        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest ./springboot
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest ./springboot
 
       - name: Push Docker backend
-        run: docker push ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest
 
       - name: Build Docker frontend
-        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/angular-app:latest ./angular-app
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest ./angular-app
 
       - name: Push Docker frontend
-        run: docker push ${{ secrets.DOCKERHUB_FATMA }}/angular-app:latest
-
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
