@@ -51,3 +51,16 @@ jobs:
           file: ./angular-app/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+ - name: Run docker compose
+        run: docker compose up -d
+
+      # ÉTAPE 7 : Vérifier les conteneurs
+      - name: Check running containers
+        run: docker ps
+
+      # ÉTAPE 8 : Vérifier backend
+      - name: Test backend
+        run: curl -f http://localhost:8081 || exit 1
+
+      # ÉTAPE 9 : Vérifier frontend
+        run: curl -f http://localhost:4200 || exit 1
