@@ -1,0 +1,25 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v3
+
+      - name: Vérifier Docker
+        run: docker --version
+
+      - name: Build Docker backend
+        run: |
+          docker build -t springboot-app ./springboot/app
+
+      - name: Build Docker frontend
+        run: |
+          docker build -t angular-app ./angular-app
