@@ -20,14 +20,14 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker backend
-        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/springboot-app ./springboot/app
+        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest ./springboot/app
 
       - name: Push Docker backend
-        run: docker push ${{ secrets.DOCKERHUB_FATMA }}/springboot-app
+        run: docker push ${{ secrets.DOCKERHUB_FATMA }}/springboot-app:latest
 
       - name: Build Docker frontend
-        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/angular-app ./angular-app
+        run: docker build -t ${{ secrets.DOCKERHUB_FATMA }}/angular-app:latest ./angular-app
 
       - name: Push Docker frontend
-        run: docker push ${{ secrets.DOCKERHUB_FATMA }}/angular-app
+        run: docker push ${{ secrets.DOCKERHUB_FATMA }}/angular-app:latest
 
