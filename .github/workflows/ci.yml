@@ -1,5 +1,6 @@
-name: CI Pipeline
+name: CI Pipeline - Step 1
 
+# Déclenchement du workflow à chaque push sur main
 on:
   push:
     branches:
@@ -10,16 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout du code
+      # Étape : récupérer le code du dépôt
+      - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Vérifier Docker
-        run: docker --version
-
-      - name: Build Docker backend
-        run: |
-          docker build -t springboot-app ./springboot/app
-
-      - name: Build Docker frontend
-        run: |
-          docker build -t angular-app ./angular-app
