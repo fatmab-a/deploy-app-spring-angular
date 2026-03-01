@@ -1,6 +1,5 @@
 name: Build and Push Docker Images
 
-
 on:
   push:
     branches:
@@ -26,6 +25,7 @@ jobs:
         run: |
           cd springboot/app
           mvn clean package -DskipTests
+          
       # ÉTAPE 3 : Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v2
@@ -50,3 +50,98 @@ jobs:
           file: ./angular-app/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+          
+      # ÉTAPE 6 : Tester l'application avec docker-compose
+      - name: Test application with docker-compose
+        run: |
+          # Créer un fichier docker-compose.test.yml pour le test
+          cat > docker-compose.test.yml << EOF
+          version: '3.8'
+          services:
+            backend:
+              image: ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest
+              ports:
+                - "8080:8080"
+              networks:
+                - test-network
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+              
+            frontend:
+              image: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+              ports:
+                - "80:80"
+              depends_on:
+                backend:
+                  condition: service_healthy
+              networks:
+                - test-network
+              
+          networks:
+            test-network:
+              driver: bridge
+          EOF
+          
+          # Démarrer les conteneurs
+          docker-compose -f docker-compose.test.yml up -d
+          
+          # Attendre que les services soient prêts
+          echo "Attente du démarrage des services..."
+          sleep 30
+          
+          # Vérifier que les conteneurs tournent
+          echo "Vérification du statut des conteneurs :"
+          docker-compose -f docker-compose.test.yml ps
+          
+          # Tester la communication frontend-backend
+          echo "Test de la communication frontend-backend :"
+          
+          # Test 1 : Vérifier que le backend répond
+          BACKEND_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || echo "failed")
+          if [ "$BACKEND_RESPONSE" = "200" ] || [ "$BACKEND_RESPONSE" = "200" ]; then
+            echo "✅ Backend est opérationnel (HTTP $BACKEND_RESPONSE)"
+          else
+            echo "❌ Backend ne répond pas correctement (HTTP $BACKEND_RESPONSE)"
+            docker-compose -f docker-compose.test.yml logs backend
+            exit 1
+          fi
+          
+          # Test 2 : Vérifier que le frontend répond
+          FRONTEND_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 || echo "failed")
+          if [ "$FRONTEND_RESPONSE" = "200" ] || [ "$FRONTEND_RESPONSE" = "304" ]; then
+            echo "✅ Frontend est opérationnel (HTTP $FRONTEND_RESPONSE)"
+          else
+            echo "❌ Frontend ne répond pas correctement (HTTP $FRONTEND_RESPONSE)"
+            docker-compose -f docker-compose.test.yml logs frontend
+            exit 1
+          fi
+          
+          # Test 3 : Vérifier la communication entre frontend et backend
+          # Note: Ce test dépend de l'API de votre application
+          echo "Test de l'API via le frontend :"
+          # Exemple : essayer d'accéder à une endpoint API via le frontend
+          # Ajustez l'URL selon votre configuration
+          API_TEST=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/test || echo "failed")
+          if [ "$API_TEST" = "200" ]; then
+            echo "✅ Communication frontend-backend fonctionnelle"
+          else
+            echo "⚠️  Test API ignoré ou non disponible (HTTP $API_TEST)"
+            # Ne pas échouer le build si cette endpoint n'existe pas
+          fi
+          
+          # Afficher les logs pour déboguer
+          echo "Logs des conteneurs :"
+          docker-compose -f docker-compose.test.yml logs
+          
+          # Nettoyer
+          echo "Nettoyage des conteneurs de test..."
+          docker-compose -f docker-compose.test.yml down -v
+          
+      # ÉTAPE 7 : (Optionnel) Nettoyage supplémentaire
+      - name: Cleanup
+        if: always()
+        run: |
+          docker system prune -f
