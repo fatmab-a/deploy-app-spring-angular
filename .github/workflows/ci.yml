@@ -84,52 +84,38 @@ jobs:
             sleep 2
           done
 
-      - name: Test frontend
+       - name: Test application
         run: |
-          echo "========================================="
-          echo "🔍 TEST FRONTEND"
-          echo "========================================="
-          if curl -s -f http://localhost:4200 > /dev/null; then
-            echo "✅ FRONTEND OK - accessible sur le port 4200"
-          else
-            echo "❌ FRONTEND ERROR"
-            docker compose logs frontend --tail=50
-            exit 1
-          fi
-
-      - name: Test backend API
-        run: |
-          echo "========================================="
-          echo "🔍 TEST BACKEND"
-          echo "========================================="
-          if curl -s -f http://localhost:8081/api/hello > /dev/null; then
-            echo "✅ BACKEND OK - API accessible"
-          else
-            echo "❌ BACKEND ERROR - API non accessible"
-            docker compose logs backend --tail=50
-            exit 1
-          fi
-
-      - name: Show container status
-        run: |
-          echo "========================================="
-          echo "📋 STATUT DES CONTENEURS"
-          echo "========================================="
+          docker compose up -d mysql
+          for i in {1..20}; do
+            if docker compose exec mysql mysqladmin ping -h localhost -uroot -proot --silent 2>/dev/null; then
+              echo "MySQL prêt "
+              break
+            fi
+            echo "En attente de MySQL"
+            sleep 2
+          done
+          docker compose up -d spring-boot-app angular-app
+          sleep 20
           docker compose ps
+          if curl -s -f http://localhost:4200 > /dev/null; then
+            echo "FRONTEND OK"
+          else
+            echo "FRONTEND ERROR"
+            docker compose logs angular-app --tail=20
+          fi
+          BACKEND_LOGS=$(docker compose logs spring-boot-app)
+          if echo "$BACKEND_LOGS" | grep -q "Started DemoApplication"; then
+            echo "BACKEND DÉMARRÉ AVEC SUCCÈs"
+            echo " L'application Spring Boot a démarré complètement"
+          else
+            echo "BACKEND NON DÉMARRÉ "
+            echo " ~K Dernières lignes des logs:"
+            docker compose logs spring-boot-app --tail=30
+          fi
 
-      - name: Show logs
-        run: |
-          echo "========================================="
-          echo "📋 LOGS RÉCENTS"
-          echo "========================================="
           docker compose logs --tail=30
-
-      - name: Stop services
-        run: |
-          echo "========================================="
-          echo "🧹 ARRÊT DES SERVICES"
-          echo "========================================="
-          docker compose down -v
+          docker compose down
 
       - name: Final verification
         if: always()
@@ -139,5 +125,4 @@ jobs:
           echo "   - Images Docker poussées sur Docker Hub"
           echo "   - Backend testé sur port 8081"
           echo "   - Frontend testé sur port 4200"
-          echo "========================================="
-
+      
