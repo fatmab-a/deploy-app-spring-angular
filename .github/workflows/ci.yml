@@ -23,6 +23,7 @@ jobs:
         run: |
           cd springboot/app
           mvn clean package -DskipTests
+
       - name: Use your own images
         run: |
           sed -i "s|nouran10/angular-app|${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest|g" docker-compose.yml
@@ -52,7 +53,6 @@ jobs:
 
       - name: Update docker-compose images
         run: |
-          # Remplacer les images dans docker-compose.yml
           sed -i "s|image:.*angular-app.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest|g" docker-compose.yml
           sed -i "s|image:.*springboot-app.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest|g" docker-compose.yml
           echo "✅ docker-compose.yml mis à jour avec vos images"
@@ -60,10 +60,10 @@ jobs:
       - name: Start services with Docker Compose
         run: |
           echo "========================================="
-          echo "🚀 DÉMARRAGE DES SERVICES"
+          echo " ~@ DÉMARRAGE DES SERVICES"
           echo "========================================="
           docker compose up -d mysql spring-boot-app angular-app
-          
+
           echo "⏳ Attente de MySQL..."
           for i in {1..30}; do
             if docker compose exec mysql mysqladmin ping -h localhost -uroot -proot --silent 2>/dev/null; then
@@ -73,7 +73,7 @@ jobs:
             echo "⏳ En attente de MySQL... $i/30"
             sleep 2
           done
-          
+
           echo "⏳ Attente du backend..."
           for i in {1..60}; do
             if curl -s -f http://localhost:8081/actuator/health > /dev/null 2>&1; then
@@ -84,33 +84,36 @@ jobs:
             sleep 2
           done
 
-       - name: Test application
+      - name: Test application
         run: |
           docker compose up -d mysql
           for i in {1..20}; do
             if docker compose exec mysql mysqladmin ping -h localhost -uroot -proot --silent 2>/dev/null; then
-              echo "MySQL prêt "
+              echo "✅ MySQL prêt"
               break
             fi
-            echo "En attente de MySQL"
+            echo "⏳ En attente de MySQL... $i/20"
             sleep 2
           done
+          
           docker compose up -d spring-boot-app angular-app
           sleep 20
           docker compose ps
+          
           if curl -s -f http://localhost:4200 > /dev/null; then
-            echo "FRONTEND OK"
+            echo "✅ FRONTEND OK"
           else
-            echo "FRONTEND ERROR"
+            echo "❌ FRONTEND ERROR"
             docker compose logs angular-app --tail=20
           fi
+          
           BACKEND_LOGS=$(docker compose logs spring-boot-app)
           if echo "$BACKEND_LOGS" | grep -q "Started DemoApplication"; then
-            echo "BACKEND DÉMARRÉ AVEC SUCCÈs"
-            echo " L'application Spring Boot a démarré complètement"
+            echo "✅ BACKEND DÉMARRÉ AVEC SUCCÈS"
+            echo "   L'application Spring Boot a démarré complètement"
           else
-            echo "BACKEND NON DÉMARRÉ "
-            echo " ~K Dernières lignes des logs:"
+            echo "❌ BACKEND NON DÉMARRÉ"
+            echo "   Dernières lignes des logs:"
             docker compose logs spring-boot-app --tail=30
           fi
 
@@ -125,4 +128,3 @@ jobs:
           echo "   - Images Docker poussées sur Docker Hub"
           echo "   - Backend testé sur port 8081"
           echo "   - Frontend testé sur port 4200"
-      
