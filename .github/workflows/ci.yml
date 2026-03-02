@@ -62,7 +62,7 @@ jobs:
           echo "========================================="
           echo "🚀 DÉMARRAGE DES SERVICES"
           echo "========================================="
-          docker compose up -d mysql backend frontend
+          docker compose up -d mysql spring-boot-app angular-app
           
           echo "⏳ Attente de MySQL..."
           for i in {1..30}; do
